@@ -1,0 +1,63 @@
+---
+title: "NLP Swiftkey Project"
+author: "James Whitehead"
+date: "11 February 2017"
+output: html_document
+---
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+library(tm)
+library(stringi)
+setwd("~/Coursera/Capstone")
+unzip("Coursera-SwiftKey.zip",
+      c("final/en_US/en_US.blogs.txt",
+        "final/en_US/en_US.news.txt",
+        "final/en_US/en_US.twitter.txt"))
+#load in using readLines
+blogs <- readLines("final/en_US/en_US.blogs.txt")
+news <- readLines("final/en_US/en_US.news.txt")
+twitter <- readLines("final/en_US/en_US.twitter.txt", skipNul=TRUE)
+
+profanURL="http://www.bannedwordlist.com/lists/swearWords.txt"
+download.file(profanURL, "profanList.txt")
+profanList <- read.table("profanList.txt")
+```
+
+##Basic data summary
+
+Below is a table showing the size (in MB), line counts and word counts for each of the documents.
+
+```{r, cache=TRUE, echo=FALSE}
+data.frame(Document=c("Blogs","News","Twitter"),
+           Filesize=c(file.size("final/en_US/en_US.blogs.txt")/(1024^2),
+                      file.size("final/en_US/en_US.news.txt")/(1024^2),
+                      file.size("final/en_US/en_US.twitter.txt")/(1024^2)),
+           Linecount=c(length(blogs), length(news), length(twitter)),
+           Wordcount=c(sum(stri_count_words(blogs)),
+                       sum(stri_count_words(news)),
+                       sum(stri_count_words(twitter))))
+```
+
+##Data Preprocessing
+
+```{r, cache=TRUE, echo=FALSE}
+set.seed(123)
+docs_sample <- VCorpus(VectorSource(c(sample(blogs, length(blogs)*0.01),
+                                      sample(news, length(news)*0.01),
+                                      sample(twitter, length(twitter)*0.01))))
+rm(list=c("blogs", "news", "twitter"))
+gc(verbose=FALSE)
+docs_sample_pp <- tm_map(docs_sample, removePunctuation, preserve_intra_word_dashes = TRUE,
+                         mc.cores=1)
+for(j in seq(docs_sample_pp)){docs_sample_pp[[j]] <- gsub("-", " ", docs_sample_pp[[j]])}
+docs_sample_pp <- tm_map(docs_sample_pp, tolower, mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, removeWords, stopwords("english"), mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, removeWords, profanList[,1], mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, removeNumbers, mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, stripWhitespace, mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, PlainTextDocument, mc.cores=1)
+
+docs_sample[[3]]$content
+
+docs_sample_pp[[3]]$content
+```
