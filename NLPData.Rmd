@@ -8,6 +8,7 @@ output: html_document
 ```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
 library(tm)
 library(stringi)
+library(SnowballC)
 setwd("~/Coursera/Capstone")
 unzip("Coursera-SwiftKey.zip",
       c("final/en_US/en_US.blogs.txt",
@@ -38,26 +39,41 @@ data.frame(Document=c("Blogs","News","Twitter"),
                        sum(stri_count_words(twitter))))
 ```
 
-##Data Preprocessing
+##Preprocessing
 
 ```{r, cache=TRUE, echo=FALSE}
+options(mc.cores=1)
 set.seed(123)
 docs_sample <- VCorpus(VectorSource(c(sample(blogs, length(blogs)*0.01),
                                       sample(news, length(news)*0.01),
                                       sample(twitter, length(twitter)*0.01))))
 rm(list=c("blogs", "news", "twitter"))
 gc(verbose=FALSE)
-docs_sample_pp <- tm_map(docs_sample, removePunctuation, preserve_intra_word_dashes = TRUE,
-                         mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample, removePunctuation, preserve_intra_word_dashes = TRUE)
 for(j in seq(docs_sample_pp)){docs_sample_pp[[j]] <- gsub("-", " ", docs_sample_pp[[j]])}
-docs_sample_pp <- tm_map(docs_sample_pp, tolower, mc.cores=1)
-docs_sample_pp <- tm_map(docs_sample_pp, removeWords, stopwords("english"), mc.cores=1)
-docs_sample_pp <- tm_map(docs_sample_pp, removeWords, profanList[,1], mc.cores=1)
-docs_sample_pp <- tm_map(docs_sample_pp, removeNumbers, mc.cores=1)
-docs_sample_pp <- tm_map(docs_sample_pp, stripWhitespace, mc.cores=1)
-docs_sample_pp <- tm_map(docs_sample_pp, PlainTextDocument, mc.cores=1)
+docs_sample_pp <- tm_map(docs_sample_pp, tolower)
+docs_sample_pp <- tm_map(docs_sample_pp, removeWords, stopwords("english"))
+docs_sample_pp <- tm_map(docs_sample_pp, removeWords, profanList[,1])
+docs_sample_pp <- tm_map(docs_sample_pp, removeNumbers)
+docs_sample_pp <- tm_map(docs_sample_pp, stemDocument)
+docs_sample_pp <- tm_map(docs_sample_pp, stripWhitespace)
+docs_sample_pp <- tm_map(docs_sample_pp, PlainTextDocument)
 
 docs_sample[[3]]$content
 
 docs_sample_pp[[3]]$content
+```
+
+
+```{r}
+nGramFunc <- function(n) {
+    options(mc.cores=1)
+    Tokenizer <- function(x) NGramTokenizer(x, Weka_control(min = n, max = n))
+    tdm <- TermDocumentMatrix(docs_sample_pp, control=list(tokenize=Tokenizer))
+    termFreq <- as.data.frame(apply(removeSparseTerms(tdm, 0.999),1,sum))
+    names(termFreq) <- c("Freq")
+    termFreq[order(-termFreq$Freq), , drop=FALSE]
+}
+
+wordFreq <- nGramFunc(1)
 ```
