@@ -26,6 +26,8 @@ profanList <- read.table("profanList.txt")
 
 ##Basic data summary
 
+The dataset contains large amounts of text samples from 3 documents (blogs, news and twitter), and were originally available from http://www.corpora.heliohost.org. The task of the capstone project is to use these texts as training data to build a predictive text model, such as might be used on a mobile device. This report aims to show some basic exploratory data analysis.
+
 Below is a table showing the size (in MB), line counts and word counts for each of the documents.
 
 ```{r, cache=TRUE, echo=FALSE}
@@ -41,6 +43,8 @@ data.frame(Document=c("Blogs","News","Twitter"),
 
 ##Preprocessing
 
+As can be seen in the table above, the documents are very large and contain a lot of text. For this report, we sample 1% of the data for further analysis. Further pre-processing is then done using the tm package in R, and involves removing punctuation and numbers, converting all to lower-case, removing stopwords (very common words such as "the", "at", "do", etc.) and removing profanity (using the list available at http://www.bannedwordlist.com). Stemming is also performed to count words with a common root together (e.g. "walk", "walks", "walking"). 
+
 ```{r, cache=TRUE, echo=FALSE}
 options(mc.cores=1)
 set.seed(123)
@@ -48,7 +52,6 @@ docs_sample <- VCorpus(VectorSource(c(sample(blogs, length(blogs)*0.01),
                                       sample(news, length(news)*0.01),
                                       sample(twitter, length(twitter)*0.01))))
 rm(list=c("blogs", "news", "twitter"))
-gc(verbose=FALSE)
 docs_sample_pp <- tm_map(docs_sample, removePunctuation, preserve_intra_word_dashes = TRUE)
 for(j in seq(docs_sample_pp)){docs_sample_pp[[j]] <- gsub("-", " ", docs_sample_pp[[j]])}
 docs_sample_pp <- tm_map(docs_sample_pp, tolower)
@@ -59,21 +62,91 @@ docs_sample_pp <- tm_map(docs_sample_pp, stemDocument)
 docs_sample_pp <- tm_map(docs_sample_pp, stripWhitespace)
 docs_sample_pp <- tm_map(docs_sample_pp, PlainTextDocument)
 
-docs_sample[[3]]$content
-
-docs_sample_pp[[3]]$content
+bf <- docs_sample[[3]]$content
+af <- docs_sample_pp[[3]]$content
 ```
 
+The result is to convert this example:
 
-```{r}
-nGramFunc <- function(n) {
+```{r, echo=FALSE}
+bf
+```
+
+to this:
+
+```{r, echo=FALSE}
+af
+```
+
+##N-gram Tokenization
+
+Here, we identify the most common single, double and triples word combinations (words, bigrams and trigrams, respectively). This was done using the RWeka package in R. In calculating the frequencies of the terms, sparse terms were removed to reduce computation time.
+
+```{r, cache=TRUE, echo=FALSE}
+library(RWeka)
+nGramFunc <- function(n, sparse) {
     options(mc.cores=1)
     Tokenizer <- function(x) NGramTokenizer(x, Weka_control(min = n, max = n))
     tdm <- TermDocumentMatrix(docs_sample_pp, control=list(tokenize=Tokenizer))
-    termFreq <- as.data.frame(apply(removeSparseTerms(tdm, 0.999),1,sum))
+    termFreq <- as.data.frame(apply(removeSparseTerms(tdm, sparse),1,sum))
     names(termFreq) <- c("Freq")
     termFreq[order(-termFreq$Freq), , drop=FALSE]
 }
 
-wordFreq <- nGramFunc(1)
+wordFreq <- nGramFunc(1, 0.99)
+bigramFreq <- nGramFunc(2, 0.999)
+trigramFreq <- nGramFunc(3, 0.9999)
 ```
+
+###Word frequencies
+
+Below is a histogram of the 20 most common words in the sample with their frequency as a percentage. For visual effect, a word cloud is also included for the most frequent words.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(wordcloud)
+wordPlot <- data.frame(Term=rownames(wordFreq), Frequency=100*(wordFreq$Freq/sum(wordFreq)))
+wordPlot$Term <- factor(wordPlot$Term, levels = wordPlot$Term)
+ggplot(wordPlot[1:20,], aes(Term, Frequency, fill="red")) +
+    geom_bar(stat="identity") +
+    theme_classic() +
+    theme(text = element_text(size=20), axis.text.x=element_text(angle=45, hjust=1)) +
+    ylab("% frequency") +
+    guides(fill="none")
+
+wordcloud(rownames(wordFreq),wordFreq$Freq, min.freq=800, colors=brewer.pal(7, "Dark2"))
+```
+
+###Bigram frequencies
+
+The 20 most common bigrams (two word combinations):
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+bigramPlot <- data.frame(Term=rownames(bigramFreq),
+                         Frequency=100*(bigramFreq$Freq/sum(bigramFreq)))
+bigramPlot$Term <- factor(bigramPlot$Term, levels = bigramPlot$Term)
+ggplot(bigramPlot[1:20,], aes(Term, Frequency, fill="red")) +
+    geom_bar(stat="identity") +
+    theme_classic() +
+    theme(text = element_text(size=20), axis.text.x=element_text(angle=45, hjust=1)) +
+    ylab("% frequency") +
+    guides(fill="none")
+```
+
+###Trigram frequencies
+
+The 20 most common trigrams (three word combinations):
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+trigramPlot <- data.frame(Term=rownames(trigramFreq),
+                         Frequency=100*(trigramFreq$Freq/sum(trigramFreq)))
+trigramPlot$Term <- factor(trigramPlot$Term, levels = trigramPlot$Term)
+ggplot(trigramPlot[1:20,], aes(Term, Frequency, fill="red")) +
+    geom_bar(stat="identity") +
+    theme_classic() +
+    theme(text = element_text(size=20), axis.text.x=element_text(angle=90, hjust=1)) +
+    ylab("% frequency") +
+    guides(fill="none")
+```
+
+Interestingly, celebration phrases (e.g. "happy mothers day", "happy new year", "st patricks day"), feature prominently here.
