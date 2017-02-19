@@ -1,7 +1,7 @@
 ---
-title: "NLP Swiftkey Project"
+title: "Data Science Capstone Project: Milestone report"
 author: "James Whitehead"
-date: "11 February 2017"
+date: "18 February 2017"
 output: html_document
 ---
 
@@ -26,7 +26,7 @@ profanList <- read.table("profanList.txt")
 
 ##Basic data summary
 
-The dataset contains large amounts of text samples from 3 documents (blogs, news and twitter), and were originally available from http://www.corpora.heliohost.org. The task of the capstone project is to use these texts as training data to build a predictive text model, such as might be used on a mobile device. This report aims to show some basic exploratory data analysis.
+The dataset contains large amounts of text samples from 3 documents (blogs, news and twitter), and were originally available from http://www.corpora.heliohost.org. The task of the capstone project is to use these texts as training data to build a predictive text model, such as might be used on a mobile device. This report aims to show some basic exploratory data analysis. The code chunks used for this report have been hidden, but may be viewed in the markdown document available at https://github.com/jamiedw2/Capstone.
 
 Below is a table showing the size (in MB), line counts and word counts for each of the documents.
 
@@ -125,7 +125,7 @@ The 20 most common bigrams (two word combinations):
 bigramPlot <- data.frame(Term=rownames(bigramFreq),
                          Frequency=100*(bigramFreq$Freq/sum(bigramFreq)))
 bigramPlot$Term <- factor(bigramPlot$Term, levels = bigramPlot$Term)
-ggplot(bigramPlot[1:20,], aes(Term, Frequency, fill="red")) +
+ggplot(bigramPlot[1:20,], aes(Term, Frequency, fill="green")) +
     geom_bar(stat="identity") +
     theme_classic() +
     theme(text = element_text(size=20), axis.text.x=element_text(angle=45, hjust=1)) +
@@ -141,7 +141,7 @@ The 20 most common trigrams (three word combinations):
 trigramPlot <- data.frame(Term=rownames(trigramFreq),
                          Frequency=100*(trigramFreq$Freq/sum(trigramFreq)))
 trigramPlot$Term <- factor(trigramPlot$Term, levels = trigramPlot$Term)
-ggplot(trigramPlot[1:20,], aes(Term, Frequency, fill="red")) +
+ggplot(trigramPlot[1:20,], aes(Term, Frequency, fill="blue")) +
     geom_bar(stat="identity") +
     theme_classic() +
     theme(text = element_text(size=20), axis.text.x=element_text(angle=90, hjust=1)) +
@@ -150,3 +150,45 @@ ggplot(trigramPlot[1:20,], aes(Term, Frequency, fill="red")) +
 ```
 
 Interestingly, celebration phrases (e.g. "happy mothers day", "happy new year", "st patricks day"), feature prominently here.
+
+###Stopword removal
+
+For the analysis so far, stopwords (i.e. very common words such as "the", "at", "do", etc.) were removed during preprocessing. It is clear that these would dominate the word frequencies, and also feature prominently in the most common bigrams and trigrams, so for text analysis it is usual to remove them. There are `r library(tm); length(stopwords("en"))` in total. The figure below shows the cumulative contribution of each unique word (starting from most common) to the total number of words in the sample. To get the "including stopwords" data, the sample was preprocessed in the same way, but without stopword removal.
+
+```{r, cache=TRUE, echo=FALSE}
+docs_sample_pp_sw <- tm_map(docs_sample, removePunctuation, preserve_intra_word_dashes = TRUE)
+for(j in seq(docs_sample_pp_sw)){docs_sample_pp_sw[[j]] <- gsub("-", " ",
+                                                                docs_sample_pp_sw[[j]])}
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, tolower)
+#don't remove the stopwords
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, removeWords, profanList[,1])
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, removeNumbers)
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, stemDocument)
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, stripWhitespace)
+docs_sample_pp_sw <- tm_map(docs_sample_pp_sw, PlainTextDocument)
+```
+
+```{r, cache=TRUE, echo=FALSE, message=FALSE, warning=FALSE}
+library(slam)
+tdm <- TermDocumentMatrix(docs_sample_pp)
+tdmFreq <- data.frame(Freq=row_sums(tdm))
+tdmFreq <- tdmFreq[order(-tdmFreq$Freq), , drop=FALSE]
+tdmCum_pc <- 100 * cumsum(tdmFreq) / sum(tdmFreq)
+
+tdm_sw <- TermDocumentMatrix(docs_sample_pp_sw)
+tdm_swFreq <- data.frame(Freq=row_sums(tdm_sw))
+tdm_swFreq <- tdm_swFreq[order(-tdm_swFreq$Freq), , drop=FALSE]
+tdm_swCum_pc <- 100 * cumsum(tdm_swFreq) / sum(tdm_swFreq)
+
+plot(tdmCum_pc$Freq, type="l", xlab="Number of terms", ylab="% of all words",
+     log="x", lwd=3, col="green")
+lines(tdm_swCum_pc, col="blue", lwd=3)
+legend(1, 90, c("without stopwords", "including stopwords"),
+       lty=c(1,1), lwd=c(3,3), col=c("green","blue"))
+```
+
+Removing the stopwords, we see that `r max(which(tdmCum_pc$Freq<=50))` unique words accounts for 50% of all the words, while this figure is `r max(which(tdm_swCum_pc$Freq<=50))` if stopwords are left in. Just the three most common words "the", "and", "for" account for more than 10% of all words in the sample. As these words are so common, it would not make sense to ignore them when building a predictive text model, and so these will be left in. `r max(which(tdm_swCum_pc$Freq<=90))` unique words (including stopwords) are required to cover 90% of the sample.
+
+##Next steps
+
+Following this exploratory data analysis, the next steps will be to take these findings and apply them to a basic n-gram model for predictive text. It will be important to find ways of maximizing the accuracy of the model while reducing the memory requirements and the runtime.
