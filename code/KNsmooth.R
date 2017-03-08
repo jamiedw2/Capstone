@@ -9,21 +9,25 @@ tgSmooth <- function() {
     #Apply the modified KN smoothing across the trigram frequency table
     trigramFreq2 <- trigramFreq
     results <- lapply(1:1000, KNmodSmooth)
-    results
+    trigramPM$bgProb <- sapply(results, function(x) x[1])
+    trigramPM$tgProb <- sapply(results, function(x) x[2])
+    trigramPM
 }
 
 tgSmoothPar <- function() {
     #Apply the modified KN smoothing across the trigram frequency table
     #using parallel processing
-    trigramFreq2 <- trigramFreq
+    trigramPM <- trigramFreq
     
     cl <- makeCluster(2)
     clusterExport(cl, c("KNmodSmooth", "trigramFreq", "bigramFreq", "Dmatrix", "BGuniPM3",
                         "trigramProb", "bigramProb", "bgRows", "KNmodGamma"))
-    results <- parLapply(cl, 1:1000, KNmodSmooth)
+    results <- parLapply(cl, 1:nrow(trigramFreq), KNmodSmooth)
     stopCluster(cl)
     
-    results
+    trigramPM$bgProb <- sapply(results, function(x) x[1])
+    trigramPM$tgProb <- sapply(results, function(x) x[2])
+    trigramPM
 }
 
 KNmodPrep <- function() {
@@ -78,8 +82,8 @@ bigramProb <- function(w2, w3) {
     whFreq <- bigramFreq$Freq[bgRows[[BGuniPM3[bigram, 4]]]]
     c <- ifelse(bgCounts > 3, 3, bgCounts)
     
-    ((bgCounts - Dmatrix["bigramFreq", c]) / BGuniPM3[bigram, 3]) + #sumCounts) +
-        (KNmodGamma(bigramFreq, "", w2, w3, whFreq) * BGuniPM3[bigram, 2]) #unigramProb(w3))
+    ((bgCounts - Dmatrix["bigramFreq", c]) / BGuniPM3[bigram, 3]) + 
+        (KNmodGamma(bigramFreq, whFreq) * BGuniPM3[bigram, 2]) 
 }
 
 trigramProb <- function(w1, w2, w3, i) {
@@ -91,18 +95,18 @@ trigramProb <- function(w1, w2, w3, i) {
     bgProb <- bigramProb(w2, w3)
     
     tgProb <- ((tgCounts - Dmatrix["trigramFreq", c]) / sum(whFreq)) +
-        (KNmodGamma(trigramFreq, w1, w2, w3, whFreq) * bgProb)
+        (KNmodGamma(trigramFreq, whFreq) * bgProb)
     
     c(bgProb, tgProb)
 }
 
-KNmodGamma <- function(ngramFreq, w1, w2, w3, whFreq) {
+KNmodGamma <- function(ngramFreq, whFreq) {
     #This function calculates the scaling factor given the words and the
     #appropriate n-gram lookup table
     ngramStr <- deparse(substitute(ngramFreq))
-    D1 <- Dmatrix[ngramStr, 1] #KNmodD(1, ngramFreq)
-    D2 <- Dmatrix[ngramStr, 2] #KNmodD(2, ngramFreq)
-    D3 <- Dmatrix[ngramStr, 3] #KNmodD(3, ngramFreq)
+    D1 <- Dmatrix[ngramStr, 1]
+    D2 <- Dmatrix[ngramStr, 2]
+    D3 <- Dmatrix[ngramStr, 3]
     
     N1_wdot <- sum(whFreq == 1)
     N2_wdot <- sum(whFreq == 2)
@@ -165,4 +169,30 @@ bgRowsMat <- function(bgRows, wordFreq) {
         BGuniPM3$bgRows[r_ls] <- wF_ind
     }
     BGuniPM3
+}
+
+bgSmoothPar <- function() {
+    #Apply the modified KN smoothing across the bigram frequency table
+    #using parallel processing
+    bigramPM <- bigramFreq
+    
+    cl <- makeCluster(2)
+    clusterExport(cl, c("bigramFreq", "Dmatrix", "BGuniPM3", "bgRows",
+                        "bigramProb2", "KNmodGamma"))
+    results2 <- parLapply(cl, 1:nrow(bigramFreq), bigramProb2)
+    stopCluster(cl)
+    
+    bigramPM$bgProb <- as.numeric(results2)
+    bigramPM
+}
+
+bigramProb2 <- function(i) {
+    #This function calculates the smoothed bigram probability
+    bigram <- rownames(bigramFreq)[i]
+    bgCounts <- bigramFreq[bigram, 1]
+    whFreq <- bigramFreq$Freq[bgRows[[BGuniPM3[bigram, 4]]]]
+    c <- ifelse(bgCounts > 3, 3, bgCounts)
+    
+    ((bgCounts - Dmatrix["bigramFreq", c]) / BGuniPM3[bigram, 3]) + 
+        (KNmodGamma(bigramFreq, whFreq) * BGuniPM3[bigram, 2]) 
 }
