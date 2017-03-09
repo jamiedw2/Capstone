@@ -115,7 +115,7 @@ KNmodGamma <- function(ngramFreq, whFreq) {
     ((D1 * N1_wdot) + (D2 * N2_wdot) + (D3 * N3plus_wdot)) / sum(whFreq)
 }
 
-#Combine the unigramProbMat functions for neatness
+#Need to combine the unigramProbMat functions for neatness
 unigramProbMat <- function(wordFreq) {
     #Generates the unigram probability matrix based on bigram frequencies, but using word
     #frequencies as reference

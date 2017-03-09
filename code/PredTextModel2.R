@@ -5,7 +5,7 @@ library(tm)
 #list, then the word list.
 #This model didn't do any better on the quizzes than the first model, but some of the
 #suggestions were more sensible.
-PredTextModel2 <- function(txt){
+PredTextModel2 <- function(txt, Nwords){
     txt_pp <- removePunctuation(txt)
     txt_pp <- tolower(txt_pp)
     txt_pp <- removeNumbers(txt_pp)
@@ -15,23 +15,27 @@ PredTextModel2 <- function(txt){
     tgrams <- subset(trigramPM, grepl(paste("^", last2words, " ", sep=""),
                                       rownames(trigramPM), perl=TRUE))
     
-    if(nrow(tgrams)==0) {
+    if(nrow(tgrams)<Nwords) {
         lastword <- tail(wordList, 1)
         bgrams <- subset(bigramPM, grepl(paste("^", lastword, " ", sep=""),
                                           rownames(bigramPM), perl=TRUE))
-        if(nrow(bgrams)==0) {
-            predWords <- rownames(wordFreq)[1:3]
+        if(nrow(bgrams)<(Nwords-nrow(tgrams))) {
+            predWords <- c(getPredWords(tgrams, nrow(tgrams)), 
+                           getPredWords(bgrams, nrow(bgrams)), 
+                           rownames(wordFreq)[1:(Nwords-nrow(tgrams)-nrow(bgrams))])
         }
-        else {predWords <- getPredWords(bgrams)}
+        else {predWords <- c(getPredWords(tgrams, nrow(tgrams)), 
+                             getPredWords(bgrams, min((Nwords-nrow(tgrams)), nrow(bgrams))))}
     }
-    else {predWords <- getPredWords(tgrams)}
+    else {predWords <- getPredWords(tgrams, Nwords)}
     
     predWords
 }
 
-getPredWords <- function(ngrams) {
+getPredWords <- function(ngrams, N) {
+    if (N==0) {return(NULL)}
     PredWords <- ngrams[order(-ngrams$Prob), , drop=FALSE]
-    PredWords <- rownames(PredWords)[1:3]
-    PredWords <- sapply(PredWords, function(x) unlist(strsplit(x, " "))[3])
+    PredWords <- rownames(PredWords)[1:N]
+    PredWords <- sapply(PredWords, function(x) tail(unlist(strsplit(x, " ")),1))
     as.character(PredWords)
 }
