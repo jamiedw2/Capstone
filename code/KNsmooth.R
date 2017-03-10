@@ -30,11 +30,28 @@ tgSmoothPar <- function() {
     trigramPM
 }
 
+qgSmoothPar <- function() {
+    #Apply the modified KN smoothing across the trigram frequency table
+    #using parallel processing
+    quadgramPM <- quadgramFreq
+    
+    cl <- makeCluster(2)
+    clusterExport(cl, c("KNmodSmooth_4gram", "quadgramFreq", "quadgramProb", "Dmatrix",
+                        "trigramPM", "KNmodGamma"))
+    results <- parLapply(cl, 1:nrow(quadgramFreq), KNmodSmooth_4gram)
+    stopCluster(cl)
+    results
+    #quadgramPM$bgProb <- results
+    #quadgramPM[,-Freq]
+}
+
 KNmodPrep <- function() {
-    Dmatrix <- matrix(nrow=2, ncol=3, dimnames=list(c("bigramFreq", "trigramFreq"),
+    Dmatrix <- matrix(nrow=3, ncol=3,
+                      dimnames=list(c("bigramFreq", "trigramFreq", "quadgramFreq"),
                                                     c("c.1", "c.2", "c.3")))
     for (i in 1:3) {Dmatrix[1,i] <- KNmodD(i, bigramFreq)}
     for (i in 1:3) {Dmatrix[2,i] <- KNmodD(i, trigramFreq)}
+    for (i in 1:3) {Dmatrix[3,i] <- KNmodD(i, quadgramFreq)}
     Dmatrix
     
     #BGuniPM <- unigramProbMat(wordFreq)
@@ -63,6 +80,18 @@ KNmodSmooth <- function(i) {
     w2 <- tgList[2]
     w3 <- tgList[3]
     trigramProb(w1, w2, w3, i)
+}
+
+KNmodSmooth_4gram <- function(i) {
+    #This function breaks the trigram down into constituent words
+    #and passes them to trigramProb(w1, w2, w3)
+    quadgram <- rownames(quadgramFreq)[i]
+    qgList <- unlist(strsplit(quadgram, " "))
+    w1 <- qgList[1]
+    w2 <- qgList[2]
+    w3 <- qgList[3]
+    w4 <- qgList[4]
+    quadgramProb(w1, w2, w3, w4, i)
 }
 
 unigramProb <- function(w3) {
@@ -98,6 +127,20 @@ trigramProb <- function(w1, w2, w3, i) {
         (KNmodGamma(trigramFreq, whFreq) * bgProb)
     
     c(bgProb, tgProb)
+}
+
+quadgramProb <- function(w1, w2, w3, w4, i) {
+    #This function calculates the smoothed quadgram probability
+    qgCounts <- quadgramFreq$Freq[i]
+    whFreq <- quadgramFreq$Freq[grep(paste("^", w1, " ", w2, " ", w3, " ", sep=""),
+                                    rownames(quadgramFreq), perl=TRUE)]
+    c <- ifelse(qgCounts > 3, 3, qgCounts)
+    tgProb <- trigramPM$Prob[rownames(trigramPM)==paste(w2, w3, w4, sep=" ")]
+    
+    qgProb <- ((qgCounts - Dmatrix["quadgramFreq", c]) / sum(whFreq)) +
+        (KNmodGamma(quadgramFreq, whFreq) * tgProb)
+    
+    qgProb
 }
 
 KNmodGamma <- function(ngramFreq, whFreq) {
