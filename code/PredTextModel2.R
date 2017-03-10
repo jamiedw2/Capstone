@@ -15,20 +15,21 @@ PredTextModel2 <- function(txt, Nwords){
     tgrams <- subset(trigramPM, grepl(paste("^", last2words, " ", sep=""),
                                       rownames(trigramPM), perl=TRUE))
     
-    if(nrow(tgrams)<Nwords) {
+    predWords <- getPredWords(tgrams, min(Nwords, nrow(tgrams)))
+    if(length(predWords)<Nwords) {
         lastword <- tail(wordList, 1)
         bgrams <- subset(bigramPM, grepl(paste("^", lastword, " ", sep=""),
                                           rownames(bigramPM), perl=TRUE))
-        if(nrow(bgrams)<(Nwords-nrow(tgrams))) {
-            predWords <- c(getPredWords(tgrams, nrow(tgrams)), 
-                           getPredWords(bgrams, nrow(bgrams)), 
-                           rownames(wordFreq)[1:(Nwords-nrow(tgrams)-nrow(bgrams))])
+        rptWords <- sapply(rownames(bgrams), 
+                           function(x) {tail(unlist(strsplit(x, " ")),1) %in% predWords})
+        bgrams <- subset(bgrams,!rptWords)
+        predWords <- c(predWords, getPredWords(bgrams, min((Nwords-nrow(tgrams)),
+                                                           nrow(bgrams))))
+        if(length(predWords)<Nwords) {
+            wF <- subset(wordFreq, !(rownames(wordFreq) %in% predWords))
+            predWords <- c(predWords, rownames(wF)[1:(Nwords-nrow(tgrams)-nrow(bgrams))])
         }
-        else {predWords <- c(getPredWords(tgrams, nrow(tgrams)), 
-                             getPredWords(bgrams, min((Nwords-nrow(tgrams)), nrow(bgrams))))}
     }
-    else {predWords <- getPredWords(tgrams, Nwords)}
-    
     predWords
 }
 

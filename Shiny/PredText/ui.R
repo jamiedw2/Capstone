@@ -2,7 +2,9 @@ library(shiny)
 
 # Define UI for application that draws a histogram
 shinyUI(fluidPage(
-    titlePanel("Predictive text model"), 
+    titlePanel("Predictive Text Model"),
+    em("Coursera data science specialization capstone project\r"),
+    p(em("Jamie Whitehead, March 2017")),
     sidebarLayout(
         sidebarPanel(
             h3("How to use"),
