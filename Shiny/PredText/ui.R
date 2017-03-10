@@ -8,9 +8,11 @@ shinyUI(fluidPage(
     sidebarLayout(
         sidebarPanel(
             h3("How to use"),
-            "Simply enter the text into the field below...",
+            "Simply paste or type the text into the field below and the predicted next word
+            will appear in the table to the right. Select the number of predicted words to
+            display using the slider (up to a maximum of 10).",
             textInput("txtIn", "Input text", value="one of"),
-            sliderInput("numWords", "Number of predicted words", min=0, max=10, value=3)
+            sliderInput("numWords", "Number of predicted words", min=1, max=10, value=3)
     ),
     
     mainPanel(
